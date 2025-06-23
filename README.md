@@ -1,20 +1,50 @@
-US_Health_Research_Project/
-├── data/
-│   ├── raw/                 # Original data files
-│   ├── processed/           # Cleaned and processed data
-│   └── spatial/             # Geographic data files (shapefiles, etc.)
-├── scripts/
-│   ├── 01_data_cleaning.R   # Data preprocessing
-│   ├── 02_factor_analysis.R  # Confounding factor identification
-│   ├── 03_variables_selection.R     # Control factor selection
-│   ├── 04_spatial_analysis.R      # Spatial data analysis
-│   ├── 05_risk_modeling.R          # Risk factor modeling
-│   └── 06_visualization.R          # Map and chart generation
-├── output/
-│   ├── figures/             # Generated plots and maps
-│   ├── tables/              # Summary statistics and results
-│   └── reports/             # Analysis reports
-├── docs/
-│   ├── report.pdf       # Detailed methodology
-│   
-└── README.md               # This file
+# Cellular Recognition Machine Learning Project
+
+A Python-based pipeline for classifying cellular images using Logistic Regression, MLP and CNN models.
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)  
+- [Features](#features)  
+- [Requirements](#requirements)  
+- [Installation](#installation)  
+- [Usage](#usage)  
+- [Project Structure](#project-structure)  
+- [Models & Algorithms](#models--algorithms)  
+- [Dataset](#dataset)  
+- [Results](#results)  
+- [Contributing](#contributing)  
+- [License](#license)  
+- [Contact](#contact)  
+
+---
+
+## Overview
+
+This project implements multiple machine learning and deep learning approaches to automatically recognize and classify cellular imagery. It demonstrates end-to-end steps from data preparation through model training, evaluation, and inference.
+
+---
+
+## Features
+
+- Baseline: **Logistic Regression**  
+- Shallow network: **Feedforward Multilayer Perceptron (MLP)**  
+- Deep network: **Convolutional Neural Network (CNN)**  
+- Data loading, preprocessing and augmentation  
+- Training, evaluation and inference scripts  
+- Configurable hyperparameters via YAML  
+
+---
+
+## Requirements
+
+- Python ≥ 3.7  
+- Packages (see `requirements.txt`):  
+  ```bash
+  numpy
+  pandas
+  scikit-learn
+  tensorflow  # or keras
+  matplotlib
