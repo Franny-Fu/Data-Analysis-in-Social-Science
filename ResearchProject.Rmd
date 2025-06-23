@@ -1,0 +1,904 @@
+---
+title: "State-Level Premature Mortality Risk"
+subtitle: "Evaluating Health Determinants While Controlling for Socioeconomic Factors In the United States"
+author: '530807483'
+lang: en
+output:
+  pdf_document:
+    latex_engine: xelatex
+    keep_tex: true
+    fig_caption: true
+documentclass: article
+fontsize: 12pt
+geometry: margin=1in
+header-includes:
+- \usepackage{float}
+- \usepackage{ctex}
+- \usepackage{graphicx}
+- \usepackage{booktabs}
+- \floatplacement{figure}{H}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE,
+  message = FALSE,
+  fig.align = 'center')
+```
+
+```{r ,include=FALSE}
+options(warn = -1)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(tidyr)
+library(knitr)
+library(sf)
+library(psych)
+library(tidyverse)
+library(lavaan)
+library(glmnet)
+library(car)
+library(lavaan)
+library(viridis)  
+library(reshape2)
+library(mice)
+library(broom)
+library(caret)  
+library(psych)
+```
+
+```{r,include=FALSE}
+data_sheet6 <- read_excel("2018 County Health Rankings Data - v2.xls", sheet = 6,skip = 1)
+```
+
+# 1. Introduction 
+\vspace{6mm}
+
+My research question is "How do healthy determinants interact to affect state-level premature mortality rates after controlling for socioeconomic factors in the United States?"\
+The purpose of this study is to develop a comprehensive explanatory model of individuals health determinants and socioeconomic status that could be used as a quantitative prediction of mortality risks in United States.The motivation for this research is to offer a novel perspective to recognise states with higher mortality risks and orientate public health and socioeconomic improvement at the state level.\
+I hypothesise that mental distress, food insecurity, diabetes, motor-vehicle mortality rate, insufficient sleep could distil multiple correlated risk indicators into an overall risk factor that could influence premature mortality at the state level in the United States. Using the provided dataset and literature review, I will add 2 confounding factors (Age over 65, Age less than 18) and 2 control variables (Not Proficient in English, Median Household Income) into the model to evaluate the importance of overall risk factor. Relevant variables will be further evaluated by a factor analysis model and two linear regression models. There are four specific hypotheses.\
+H1: Mental distress, food insecurity, diabetes, motor-vehicle mortality rate and insufficient sleep form a single latent risk factor(MR1) through factor analysis, with model fit indices meeting acceptable thresholds .\
+H2: In a multivariate linear regression (Model 1) of premature mortality on MR1, MR1 will exhibit a significant positive association and explain a non-zero proportion of variance (R² > 0).\
+H3: Confounding variables will confound the association between MR1 and mortality, while simultaneously exerting an independent effect on mortality.\
+H4: Linear Model2 incorporating confounding factors and control variables will exhibit greater interpretability and explanatory power than Linear Model1.\
+
+
+# 2. Literature and theory
+\vspace{6mm}
+
+```{=tex}
+In their 2021 report, Banerjee et al. show that food-insecure people face a 46\% higher risk of dying from any cause (HR = 1.46). Although adjustments were made for income and education, residual confounding by factors such as social support may inflate this estimate. The predominantly middle-aged cohort also limits generalizability to other age groups. Nonetheless, the strength and consistency of this association across sensitivity analyses justify treating food insecurity as a substantive, direct predictor of premature mortality in our models.\\
+Based on large-scale survey data, the findings indicate a strong and statistically significant association between chronic medical conditions such as diabetes and premature death (Tsuji,2023). Diabetes represents a clearly defined medical condition with well-established biological pathways linking it to an increased risk of death. Therefore, in this study, I treat diabetes as a direct factor that influences premature mortality.\\
+Sleep behaviour also emerges as a crucial determinant—individuals sleeping fewer than six hours per night were found to have a 54\% increase in all-cause mortality (Allouch et al., 2023), likely associated with increased cardiovascular issues and obesity, which further increases premature mortality risks (Kuehn, 2019). Some individuals argue that sleep efficiency and quality could be more critical than quantity alone (Broadfoot, 2024). This highlights the complexity of sleep's role in health. Thus, I choose insufficient sleep as a factor that has a direct influence on mortality.\\
+Several studies show that adults with serious psychological distress have a 97\% higher Alzheimer’s mortality risk (Singh et al., 2021) and an 80\% higher cancer mortality risk (Lee \& Singh, 2021), independent of sociodemographic and behavioural covariates. While these adjustments strengthen causal inference, the observational design cannot eliminate residual confounding or reverse causation. Nevertheless, the consistency and magnitude of these associations justify including frequent mental distress as an independent predictor of premature mortality.\\
+Motorcycle collisions play an essential role in U.S. mortality, as 24 states reported an increase in fatalities from 2015 to 2019 (Ngatuvai et al., 2022). However, these aggregate trends may partly reflect shifts in rider exposure, such as increases in miles travelled or changes in licensing demographics, rather than safety intervention failures. Furthermore, state-level analyses often overlook critical confounders—like roadway design, enforcement intensity, and reporting practices—that influence fatality counts. Nonetheless, the continuing upward trend in fatality rates supports the use of motorbike crash fatalities as a substantial predictor of premature death.\\  
+Observational studies indicate that higher household incomes correlate with lower mortality (Ndawi et al., 2015) and that greater societal income inequality is associated with rising death rates (Dunn et al., 2024).Higher income also facilitates access to healthier food and quality healthcare (Lordan et al., 2012). Given its dual role, I incorporate median household income in Model2 as a confounder, assessing whether controlling for income enhances explanatory power and interpretability relative to Model1.\\
+In a cohort of 92,958 patients, limited English proficiency was linked to 36\% higher odds of unmet social need the , association persisted after adjusting for demographic factors(Fischer et al., 2021),highlighting its role as a confounding variable in analyses of health outcome.\\
+Studies demonstrate that age thresholds independently affect mortality. Adults whose age≥65 account for 80\% of heart disease deaths (Sidney et al., 2019) and high unintentional injury rates (Cheng et al., 2016),(Kakara et al., 2023), while those age<18 face fatal crashes and increasing CO-poisoning mortality (Huh \& Reif, 2021). Therefore, we include Age < 18 and Age > 65 as control variables to adjust for these age-specific mortality patterns. \\
+Existing research often examines isolated health determinants—such as sleep or mental health, without integrating them into a unified latent variable model, thereby overlooking their combined effects. My study addressed this gap by concurrently modelling multiple risk factors within a single latent framework and rigorously adjusting for socioeconomic factors, enabling a more comprehensive evaluation of their synergistic impact on mortality.\\
+The literature review supports building a latent factor (MR1) that includes five risk indicators, as stated in H1. Each of the selected variables has shown significant empirical associations with mortality in prior studies, which justifies their inclusion. Furthermore, pieces of literature suggest that MR1 will have a positive direct association with mortality (H2). Since income influences both MR1 indicators and mortality, it is hypothesised to act as a confounder (H3). Including it in an extended model (H4) may enhance the explanatory power and improve the model fit.\\
+```
+
+# 3. Data and methodology 
+\vspace{6mm}
+
+### 3.1 Data
+The dataset is collected by The University of Sydney Course DATA5207 from the “County Health Rankings & Roadmaps" program, which is a collaboration between the Robert Wood Johnson Foundation and the University of Wisconsin Population Health Institute. Data were sourced from government and research reports and validated questionnaires, with subsequent adjustments to address reporting biases and missing values. Institutional oversight and rigorous cleaning ensure high reliability, though self-reported measures may introduce response bias.\
+The dataset contains 99 attributes and 3142 rows.I choose mental distress, diabetes prevalence, insufficient sleep, food insecurity, premature mortality, motor-vehicle mortality as explanatory variables,over-65 rate, under-18 rate  as control variables and non-English proficiency, median household income as confounding variables and “Age-adjusted mortality” as responsive variable with their orginial distribution shown Figure1.
+
+```{r,include=FALSE}
+#see dimension
+dim(data_sheet6)
+colnames(data_sheet6)
+```
+
+```{r, include=FALSE}
+var <- data.frame(
+  `AgeAdjMortality`=data_sheet6$`Age-Adjusted Mortality`,
+  `FreqMentalDistress` = data_sheet6$`% Frequent Mental Distress`,
+  `Diabetic` = data_sheet6$`% Diabetic`,
+  `FoodInsecure`=data_sheet6$`% Food Insecure`,
+  `InsufficientSleep`=data_sheet6$`% Insufficient Sleep`,
+  `HouseholdIncome`=data_sheet6$`Household Income`,
+  `FIPS`=data_sheet6$FIPS,
+  `MVMortalityRate`=data_sheet6$`MV Mortality Rate`,
+  `Over65`=data_sheet6$`% 65 and over`,
+  `18orless`=data_sheet6$`% < 18`,
+  `NotproinEnglish`=data_sheet6$`% Not Proficient in English`
+  )
+missing <- colSums(is.na(var))
+print(missing)
+```
+
+```{r fig1,fig.width=12, fig.height=8,fig.cap="Distribution of Health and Socioeconomic Variables",echo=FALSE}
+#orginial histogram
+par(mfrow = c(3, 4), mar = c(5, 4, 3, 2) + 0.1, oma = c(4, 0, 0, 0))  
+
+hist(var$AgeAdjMortality,
+     main   = "AgeAdjMortality Distribution",
+     xlab   = "Premature age-adjusted mortality",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$HouseholdIncome,
+     main   = "HouseholdIncome Distribution",
+     xlab   = "Median Household Income",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$FreqMentalDistress,
+     main   = "FreqMentalDistress Distribution",
+     xlab   = "Frequent Mental Distress",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$Diabetic,
+     main   = "Diabetic Distribution",
+     xlab   = "Diabetes prevalence",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$InsufficientSleep,
+     main   = "InsufficientSleep Distribution",
+     xlab   = "Insufficient Sleep",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$FoodInsecure,
+     main   = "FoodInsecure Distribution",
+     xlab   = "Food Insecure",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$MVMortalityRate,
+     main   = "MVMortalityRate Distribution",
+     xlab   = "MV Mortality Rate",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+hist(var$Over65,
+     main   = "65 and Over Distribution",
+     xlab   = "Premature age-adjusted mortality",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$NotproinEnglish,
+     main   = "Not proficient in English Distribution",
+     xlab   = "Premature age-adjusted mortality",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+
+hist(var$X18orless,
+     main   = "Younger than 18 Distribution",
+     xlab   = "Premature age-adjusted mortality",
+     breaks = 20,
+     col    = "lightblue",
+     border = "white")
+```
+Median imputation is used to fill in the missing data in “Household Income” and “Age-adjusted mortality”,which provides robustness against outliers and skewed data (Alam et al., 2023). I utilised the MICE package, performing five PMM-based chained equations iterations with five imputations and random sampling to impute MVMortalityRate and to control for non-response bias arising from missing data.As Figure2 shows, The imputatioin didn't affect the original dimensions and distribution.
+
+```{r,include=FALSE}
+#median imputation
+var$AgeAdjMortality[is.na(var$AgeAdjMortality)] <- median(var$AgeAdjMortality, na.rm = TRUE)
+var$HouseholdIncome[is.na(var$HouseholdIncome)] <- median(var$HouseholdIncome,na.rm = TRUE)
+```
+
+```{r,include=FALSE,message=FALSE}
+#MV MortalityRate Imputation
+df_imp <- var %>%
+  dplyr::select(
+    MVMortalityRate, 
+    FreqMentalDistress, 
+    Diabetic, 
+    InsufficientSleep, 
+    FoodInsecure
+  )
+
+meth <- rep("", ncol(df_imp))
+names(meth) <- names(df_imp)
+meth["MVMortalityRate"] <- "pmm"
+
+imp <- mice(
+  data = df_imp,
+  method = meth,
+  m      = 5,
+  maxit  = 5,
+  seed   = 2025
+)
+plot(imp, c("MVMortalityRate"))
+
+completed1 <- complete(imp, 1)  
+var$MVMortalityRate<- completed1$MVMortalityRate
+missing_after <- colSums(is.na(var))
+print(missing_after)
+```
+
+```{r fig2,fig.width=8, fig.height=4,fig.cap="Distribution of Handling Missing Variables",echo=FALSE}
+#histogram after fill missing data
+par(mfrow = c(1, 3), mar = c(5, 4, 2, 1) + 0.1, oma = c(4, 0, 0, 0))  
+
+hist(
+  var$HouseholdIncome,
+  main   = "HouseholdIncome Distribution",
+  xlab   = "Median Household Income",
+  breaks = 20,
+  col    = "lightblue",
+  border = "white"
+)
+
+hist(
+  var$AgeAdjMortality,
+  main   = "AgeAdjMortality Distribution",
+  xlab   = "Premature age-adjusted mortality",
+  breaks = 20,
+  col    = "lightblue",
+  border = "white"
+)
+
+
+hist(
+  var$MVMortalityRate,
+  main   = "MVMortalityRate Distribution",
+  xlab   = "MV Mortality Rate",
+  breaks = 20,
+  col    = "lightblue",
+  border = "white"
+)
+
+```
+I used log transformation transfer right tailed distribution in four columns into normal distribution(Curran-Everett, 2018).Then the Interquartile range (IQR) method is used to identify and clean outliers. In the final preprocessing step, each of the five variables was standardised using Z‐score transformation, such that the transformed values have a mean of zero and a standard deviation of one. Mapping heterogeneous measurements to a common scale could significantly improve the performance of linear models (Sujon et al., 2024).
+
+```{r,include=FALSE}
+#log transformation
+var <- var %>%
+  mutate(
+    log_HouseholdIncome   = log(HouseholdIncome),      
+    log_FoodInsecure      = log(FoodInsecure),
+    log__AgeAdjMortality =log(AgeAdjMortality),
+    log_MVMortalityRate=log(MVMortalityRate),
+    log_Over65         =log(Over65),
+    log_X18orless      =log(X18orless),
+    log_NotproinEnglish=log(NotproinEnglish)
+    
+  )%>%
+  select(-HouseholdIncome, -FoodInsecure)
+
+```
+
+```{r,include=FALSE}
+for (col in names(var)) {
+  if (col == "FIPS") next
+  if (is.numeric(var[[col]])) {
+    Q1 <- quantile(var[[col]], 0.25, na.rm = TRUE)
+    Q3 <- quantile(var[[col]], 0.75, na.rm = TRUE)
+    IQR_val <- Q3 - Q1
+    
+    lower_bound <- Q1 - 1.5 * IQR_val
+    upper_bound <- Q3 + 1.5 * IQR_val
+    median_val <- median(var[[col]], na.rm = TRUE)
+    var[[col]][var[[col]] < lower_bound | var[[col]] > upper_bound] <- median_val
+  }
+}
+```
+
+```{r,include=FALSE}
+#scale data
+var_scaled <- as.data.frame(scale(var[ , names(var) != "FIPS"]))
+var_scaled$FIPS <- var$FIPS
+us.shape.2<-var_scaled
+```
+
+### 3.2 Methodology 
+
+This study employs a three-stage analytical approach to examine the relationship between multiple risk factors and mortality rates. Firstly, I conducted a factor analysis including mental distress, food insecurity, diabetes, MV mortality rate, and insufficient sleep to construct an overall health risk index (MR1).\
+Subsequently, a baseline linear regression model is established:$$Y = \beta_0 + \beta_1 MR1 + E$$ Y represents the mortality rate, E represents the error term not accounted for by the included predictors. The coefficient ($\beta_1 > 0$) quantifies the corresponding change in mortality rate with one-unit increase in MR1, providing an initial assessment of the composite risk factor's impact.\
+Finally, I incorporate 2 confounding factors and 2 control variables into the extended model with the fomula: 
+$$Y = \beta_0 + \beta_1 MR1 + \beta_2 Age_{>65} + \beta_3 Age_{<18} + \beta_4 HouseholdIncome +\beta_5 NotProinEnglish +E$$
+In Model2, $\beta_1$ represents the direct effect of MR1 on mortality after controlling for socioeconomic factors.\
+Factor analysis identifies latent constructs capturing observed variable correlations (Frost, n.d.), with MR1 representing overall health risk whilst reducing dimensionality and multicollinearity.However,it sacrifices information and is unable to detect which health risk factors make the largest marginal contribution to mortality in the model.\
+Linear regression facilitates confounding bias detection through coefficient analysis (Liu & Chan, 2018), despite assumptions of linearity and sensitivity to outliers. Model fit is assessed using adjusted R-squared and AIC, enabling insights into the confounding factor.\
+Factor analysis was chosen over principal component analysis and cluster analysis as it focuses on shared variance rather than total variance, making it more suitable for identifying underlying health risk dimensions.With this small-scale dataset and continuous variables, it is easy to cause overfitting with machine learning methods. Since multicollinearity is already under control, LASSO linear regression is not selected.\
+Interpreting MR1 exclusively at the state level avoids individual-level extrapolation, thereby mitigating the ecological fallacy inherent in applying aggregate metrics to individuals.
+
+# 4. Results
+\vspace{6mm}
+
+### 4.1 Descriptive Analysis 
+
+```{r fig3,fig.width=12,fig.height=8,fig.cap="Distribution of Final Health and Socioeconomic Variables",echo=FALSE}
+#final histogram
+par(mfrow = c(3, 4), mar = c(5, 4, 3, 2) + 0.1, oma = c(4, 0, 0, 0))
+
+hist(us.shape.2$FreqMentalDistress,
+     main   = "FreqMentalDistress Distribution",
+     xlab   = "Frequent Mental Distress",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$Diabetic,
+     main   = "Diabetic Distribution",
+     xlab   = "Diabetes prevalence",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$InsufficientSleep,
+     main   = "InsufficientSleep Distribution",
+     xlab   = "Insufficient Sleep",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$log_HouseholdIncome,
+     main   = "HouseholdIncome Distribution",
+     xlab   = "Median Household Income (log)",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$log_FoodInsecure,
+     main   = "FoodInsecure Distribution",
+     xlab   = "Food Insecure (log)",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$log__AgeAdjMortality,
+     main   = "AgeAdjMortality Distribution",
+     xlab   = "Premature age-adjusted mortality (log)",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$log_MVMortalityRate,
+     main   = "MVMortalityRate Distribution",
+     xlab   = "MV Mortality Rate (log)",
+     breaks = 20, col = "lightblue", border = "white")
+
+hist(us.shape.2$log_Over65,
+     main   = "Over65 Distribution",
+     xlab   = "Over65 Rate (log)",
+     breaks = 20, col = "lightblue", border = "white")
+hist(us.shape.2$log_X18orless,
+     main   = "Younger than 18 Distribution",
+     xlab   = "Younger than 18(log)",
+     breaks = 20, col = "lightblue", border = "white")
+hist(us.shape.2$log_NotproinEnglish,
+     main   = "Not proficient in English Distribution",
+     xlab   = "Not proficient in English(log)",
+     breaks = 20, col = "lightblue", border = "white")
+plot.new()           
+```
+
+```{r,include=FALSE}
+#summary
+summary(us.shape.2)
+```
+As Figure3 shows, all ten variables exhibit roughly symmetric, bell-shaped distributions with mean=0. Interquartile ranges are similar, with most values falling between –2 and +2. 
+
+```{r,include=FALSE}
+df <- st_drop_geometry(us.shape.2)
+vars <- c(
+  "log_MVMortalityRate",
+  "log_FoodInsecure",
+  "log_HouseholdIncome",
+  "InsufficientSleep",
+  "Diabetic",
+  "FreqMentalDistress",
+  "log_NotproinEnglish",
+  "log_Over65",
+  "log_X18orless"
+)
+cor_mat <- cor(
+  df[, vars],
+  use = "pairwise.complete.obs"
+)
+cor_df <- melt(
+  cor_mat,
+  varnames  = c("Var1", "Var2"),
+  value.name = "value"
+)
+
+```
+
+```{r fig4,fig.width=8, fig.height=4,fig.cap="Heatmap of Variables",echo=FALSE}
+#heatmap
+ggplot(cor_df, aes(Var1, Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(mid = "white", low = "steelblue", high = "firebrick") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_blank(),
+    plot.caption = element_text(
+      hjust = 0.5,          
+      size = 12,           
+      margin = margin(t = 20)
+    ),
+  ) +
+  labs(
+    fill = "Correlation",
+  )
+
+```
+Correlation Heatmap(Figure 4) illustrates Pearson correlations among processed variables. Correlations range from approximately –0.50 to +0.65, with none of the correlations exceeding the commonly accepted threshold of 0.9 that would indicate severe multicollinearity. The correlation matrix indicates that multicollinearity is not a concern for subsequent analyses, as each variable contributes unique information to the analysis.
+
+### 4.2 Factor Analysis 
+
+```{r,include=FALSE}
+#KMO
+df_vars <- var_scaled[, c("FreqMentalDistress","Diabetic","log_FoodInsecure","InsufficientSleep","MVMortalityRate")]
+KMO(df_vars)
+```
+
+```{r,include=FALSE}
+set.seed(42)
+idx <- sample(nrow(df_vars), size = nrow(df_vars)/2)
+efa_A <- fa(df_vars[idx, ], nfactors=1, fm="ml")
+efa_B <- fa(df_vars[-idx,], nfactors=1, fm="ml")
+factor.congruence(efa_A$loadings, efa_B$loadings)
+
+```
+
+```{r fig5,fig.width=8, fig.height=4,fig.cap="Factor Analysis",echo=FALSE}
+#factor analysis
+fa.fit <- fa(var_scaled[,c("FreqMentalDistress",
+                         "Diabetic",
+                         "log_FoodInsecure",
+                         "InsufficientSleep",
+                         "MVMortalityRate"
+                         )], 
+             nfactors=1)
+fa.diagram(fa.fit)
+
+```
+
+```{r fig6,fig.align="center",fig.width=8, fig.height=4,fig.cap="Factor Loadings",message = FALSE, warning = FALSE,echo=FALSE}
+#factor loadings
+loadings_df <- data.frame(
+  Variable = rownames(fa.fit$loadings),     
+  Loading  = unclass(fa.fit$loadings)[, 1]   
+)
+
+ggplot(loadings_df, aes(x = reorder(Variable, Loading), y = Loading)) +
+  geom_col(width = 0.6, fill = "lightblue") +
+  coord_flip() +
+  labs(
+    title = "Factor Model Loadings",
+    x     = NULL,
+    y     = "Loading"
+  ) +
+  theme_minimal(base_size = 14)
+```
+Figure 5 illustrates the structural relationships between observed variables and the latent factor, while Figure 6 provides a comparative visualisation of the standardised factor loadings through horizontal bar charts. The standardised loadings indicate that frequency mental distress (0.90) and diabetes prevalence (0.80) contribute most strongly to MR1, followed by food insecurity (0.70) and insufficient sleep (0.70). Motor-vehicle mortality exhibits a more modest loading (0.40), demonstrating a lesser extent in overall health risk. These results support the unidimensionality of MR1 and justify its use as a composite measure of underlying population health risk.
+
+```{r,include=FALSE}
+#CFA validation
+cfa_model <- '
+  MR1 =~ MVMortalityRate + log_FoodInsecure +
+         InsufficientSleep + Diabetic + FreqMentalDistress'
+
+fit <- cfa(cfa_model, data = df_vars)
+summary(fit, fit.measures = TRUE, standardized = TRUE)
+```
+
+```{r,include=FALSE}
+# Cronbach’s Alpha
+alpha_res <- alpha(df_vars)
+print(alpha_res$total$raw_alpha)   
+print(alpha_res)                
+#Composite Reliability；CR
+efa1 <- fa(df_vars, nfactors = 1, fm = "ml")
+loadings <- as.numeric(efa1$loadings)  # λ_i
+uniqueness <- efa1$uniqueness         # θ_i
+CR <- (sum(loadings))^2 / ( (sum(loadings))^2 + sum(uniqueness) )
+cat("Composite Reliability:", round(CR, 3), "\n")
+
+```
+The single-factor CFA (n=3142) showed: $\chi^2$(5)=614.21, CFI=0.906, RMSEA=0.197. RMSEA exceeds the recommended threshold of 0.08, indicating poor model fit.Nonetheless, all standardised loadings were significant (variances: 0.176-0.820) and the scale yielded a Cronbach's alpha of 0.82, indicating good internal consistency among attributes.
+
+```{r fig7,fig.cap="Screen Plot of Factor Analysis",echo=FALSE}
+#Screen Plot
+eig_vals <- eigen(cor(df_vars, use = "pairwise.complete.obs"))$values
+plot(
+  eig_vals, type="b", pch=16,
+  xlab="Factor Number",
+  ylab="Eigenvalue",
+  main="Screen Plot"
+)
+abline(h=1, lty=2, col="gray")
+```
+The Kaiser-Meyer-Olkin measure yielded an overall MSA of 0.76, exceeding the 0.60 threshold, with individual MSAs ranging from 0.66 to 0.85, confirming adequate sampling for factor analysis. Test-retest reliability was assessed through random data splitting, with Tucker's coefficient of factor congruence reaching 1.00, indicating perfect stability across subsamples. The single-factor CFA demonstrated acceptable fit indices (CFI=0.906, TLI=0.812, RMSEA=0.197), confirming the structural reliability of the extracted factor.
+```{r,include=FALSE}
+#build MR1
+us.shape.2$MR1 <- 0.9 * var_scaled$FreqMentalDistress +
+                  0.7 * var_scaled$log_FoodInsecure +
+                  0.8 * var_scaled$Diabetic + 
+                  0.7 * var_scaled$log_HouseholdIncome +
+                  0.4 * var_scaled$log_MVMortalityRate
+```
+
+```{r fig8,fig.width=8, fig.height=4,fig.cap="Histogram of MR1 and MR2",echo=FALSE}
+#histogram of MR1
+par(
+  mfrow = c(1, 1),
+  mar   = c(5, 4, 3, 2) + 0.1,   
+  oma   = c(4, 0, 0, 0)          
+)
+hist(
+  us.shape.2$MR1,
+  prob    = TRUE,
+  main    = "MR1 Distribution",
+  xlab    = "MR1",
+  col     = "lightblue",
+  border  = "white"
+)
+lines(density(us.shape.2$MR1, na.rm = TRUE), lwd = 2)
+```
+Figure 8 shows that MR1 has a normal distribution, which satisfied the assumption of linear regression.
+
+### 4.3 Baseline Regression (Model1) Results
+
+```{r,include=FALSE}
+#MODEL1 
+lm_fit <- lm(log__AgeAdjMortality ~ MR1, data = us.shape.2)
+summary(lm_fit)
+smry_fit <- summary(lm_fit)
+r2_fit       <- smry_fit$r.squared
+adj_r2_fit   <- smry_fit$adj.r.squared
+mse_fit      <- mean(lm_fit$residuals^2)
+rmse_fit     <- sqrt(mse_fit)
+cat("MSE     =", round(mse_fit, 4), "\n",
+    "RMSE    =", round(rmse_fit, 4), "\n",
+    "R^2     =", round(r2_fit, 4), "\n",
+    "Adj R^2 =", round(adj_r2_fit, 4), "\n")
+
+```
+
+```{r,include=FALSE}
+set.seed(123)  
+ctrl_10 <- trainControl(method = "cv", number = 10)  
+cv_10 <- train(  
+  log__AgeAdjMortality ~ MR1,  
+  data     = us.shape.2,  
+  method   = "lm",  
+  trControl = ctrl_10  
+)  
+print(cv_10)
+```
+The established Model1 formula is:
+$Y = -2.109 \times 10^{-15} + 4.047 \times 10^{-1} \times MR1 + E$ .
+
+This model explains about 53.6% of the variance in the dependent variable with a high prediction error (RMSE = 0.6811). The adjusted R² is nearly the same as R², meaning the included predictors are still relevant. 10‐fold cross‐validation of Model1 yielded an average RMSE of 0.681, R² = 0.537, and MAE of 0.526 across folds with the intercept held constant.
+
+```{r fig9,fig.width=12,fig.height=8,fig.cap="Model1 Residuals Analysis",echo=FALSE}
+#Fit of Model1
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+plot(
+  lm_fit,
+  which       = 1:4,      
+  sub.caption = ""        
+)
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+```
+Figure 9 presents four standard diagnostics for Model1.The Residuals vs Fitted plot shows residuals scattered symmetrically about zero and a nearly flat LOESS line, indicating no systematic bias or strong nonlinearity. In the QQ Residuals plot, most points lie along the reference line, with only slight deviation at the upper tail, suggesting that residuals approximate normality. The Scale Location plot displays a roughly constant spread of standardised residuals over fitted values, supporting homoscedasticity. Finally, the Cook’s Distance plot highlights a few observations (e.g. 924, 1206) with marginally higher influence, yet all distances remain below common cutoffs, indicating no overly influential outliers.
+
+```{r,include=FALSE}
+#Test-retest of Model1
+set.seed(2025)
+
+N_total    <- nrow(us.shape.2)
+split_idx  <- sample(seq_len(N_total), size = floor(N_total / 2))
+df_part1   <- us.shape.2[split_idx, ]
+df_part2   <- us.shape.2[-split_idx, ]
+
+model_part1 <- lm(log__AgeAdjMortality ~ MR1, data = df_part1)
+model_part2 <- lm(log__AgeAdjMortality ~ MR1, data = df_part2)
+
+coefs_part1 <- coef(model_part1)
+coefs_part2 <- coef(model_part2)
+
+print(coefs_part1)
+print(coefs_part2)
+
+coef_correlation <- cor(coefs_part1, coefs_part2)
+coef_difference  <- coefs_part1 - coefs_part2
+
+cat("Coefficient correlation:", coef_correlation, "\n")
+cat("Coefficient differences:\n")
+print(coef_difference)
+```
+Test-retest was conducted by randomly dividing the dataset, with a perfectly correlated outcome (r = 1.000). The intercept differed by –0.00565 and the MR1 slope by 0.01684 across samples. Such flawless alignment and coefficient variation demonstrate the high reliability and stability of model1 estimates.
+
+### 4.4 Extended Regression(Model2) Results 
+
+The established Model2 Fomula is:
+```{r, echo=FALSE, results='asis'}
+cat("$$
+\\begin{aligned}
+Y &= -2.072\\times10^{-16} + 2.781\\times10^{-1}\\cdot MR1 + (-4.043\\times10^{-2})\\cdot Age_{over65} + 1.188\\times10^{-1}\\cdot Age_{<18} \\\\
+&\\quad + (-3.998\\times10^{-1})\\cdot HouseholdIncome + (-7.780\\times10^{-2})\\cdot NotProinEnglish + E
+\\end{aligned}
+$$")
+
+```
+
+```{r,include=FALSE}
+#BUILD Model2
+lm_confound <- lm(log__AgeAdjMortality ~ MR1+log_NotproinEnglish+log_X18orless+log_Over65+log_HouseholdIncome, data = us.shape.2)
+summary(lm_confound)
+
+smry <- summary(lm_confound)
+r2       <- smry$r.squared
+adj_r2   <- smry$adj.r.squared
+mse      <- mean(lm_confound$residuals^2)
+rmse     <- sqrt(mse)
+cat("MSE     =", round(mse, 4), "\n",
+    "RMSE    =", round(rmse, 4), "\n",
+    "R^2     =", round(r2, 4), "\n",
+    "Adj R^2 =", round(adj_r2, 4), "\n")
+```
+
+```{r,include=FALSE}
+set.seed(123)  
+ctrl10 <- trainControl(method = "cv", number = 10)  
+cv10 <- train(  
+  log__AgeAdjMortality ~ MR1+log_NotproinEnglish+log_X18orless+log_Over65+log_HouseholdIncome,  
+  data     = us.shape.2,  
+  method   = "lm",  
+  trControl = ctrl10  
+)  
+print(cv10)
+```
+
+Model2 explains approximately 65.4 percent of the variance in the dependent variable (R² = 0.6539), with a relatively low in-sample prediction error (RMSE = 0.5882; MSE = 0.346)Overall, this represents a strong model fit.10-fold cross-validation of Model2 confirmed its robustness, producing an average RMSE of 0.604, R² = 0.635, and MAE = 0.465 across folds. The model intercept was held constant throughout.
+```{r,include=FALSE}
+#check multilinear
+vif(lm_confound)
+```
+
+All variance inflation factors (VIFs) range from 1.20 to 1.53, which are well below the VIF = 10 threshold, indicating negligible multicollinearity among the predictors (Upendra et al., 2023).
+```{r fig10,fig.width=12,fig.height=8,fig.cap="Model2 Residuals Analysis",echo=FALSE}
+#fit of model2
+par(
+  mfrow = c(2, 2),
+  mar   = c(4, 4, 2, 1) + 0.1,   
+  oma   = c(0, 0, 2, 0)          
+)
+plot(
+  lm_confound,
+  which       = 1:4,      
+  sub.caption = ""       
+)
+```
+Figure 10 presents standard diagnostic plots for Model2. The Residuals vs Fitted scatter shows residuals symmetrically distributed about zero, with a near–horizontal LOESS curve, indicating no obvious nonlinearity or bias. In the QQ residuals plot, most points adhere closely to the reference line, demonstrating the approximate normality of errors. The Scale-Location plot demonstrates homoscedasticity, with the square root of standardised residuals roughly constant spreading across fitted values. Finally, the Cook’s distance plot identifies a handful of modestly influential observations (e.g. 109,924, 2608), none of which exceed typical influence thresholds.
+
+
+```{r,include=FALSE}
+#test-retest of model2
+set.seed(2025)
+
+n      <- nrow(us.shape.2)
+idx    <- sample.int(n, size = floor(n/2))
+data1  <- us.shape.2[idx, ]
+data2  <- us.shape.2[-idx, ]
+
+lm1 <- lm(log__AgeAdjMortality ~ MR1+log_NotproinEnglish+log_X18orless+log_Over65+log_HouseholdIncome, data = data1)
+lm2 <- lm(log__AgeAdjMortality ~ MR1+log_NotproinEnglish+log_X18orless+log_Over65+log_HouseholdIncome, data = data2)
+
+coef1 <- coef(lm1)       
+coef2 <- coef(lm2)      
+
+print(coef1)
+print(coef2)
+
+corr_coef <- cor(coef1, coef2)
+diff_coef <- coef1 - coef2
+
+cat("Coefficient correlation:", corr_coef, "\n")
+cat("Coefficient differences:\n")
+print(diff_coef)
+```
+
+For reliability checks of model2, Pearson’s correlation between the two sets of parameters of model2 estimates was 0.9979, and the differences in individual estimates were –0.0100 (Intercept), 0.0319 (MR1) and 0.0212 (MR2). Such near-perfect alignment and minimal estimate variation across samples underscore the stability and robustness of the model parameters.
+
+### 4.5 Model Comparsion Results
+
+```{r fig11,fig.width=8, fig.height=4,fig.cap="Comparison of MR1 Coefficient: Model1 vs. Model2",fig.pos="H",echo=FALSE}
+m1_coef <- tidy(lm_fit, conf.int = TRUE) %>%
+  filter(term == "MR1") %>%
+  mutate(Model = "Model1")
+
+m2_coef <- tidy(lm_confound, conf.int = TRUE) %>%
+  filter(term == "MR1") %>%
+  mutate(Model = "Model2")
+
+coef_plot_df <- bind_rows(m1_coef, m2_coef)
+
+# Plot side-by-side bars with 95% CIs
+ggplot(coef_plot_df, aes(x = Model, y = estimate, fill = Model)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+                width = 0.2, size = 0.8) +
+  labs(
+    title = "Comparison of MR1 Coefficient: Model1 vs. Model2",
+    x = NULL,
+    y = "MR1 Coefficient (with 95% CI)"
+  ) +
+  theme_minimal()
+
+```
+Model2 performs better than Model1 in terms of both explanatory power (higher R² and Adj R²) and prediction accuracy (lower MSE and RMSE).
+Figure 12 illustrates that the estimated effect of MR1 on log‐transformed age‐adjusted mortality declines markedly from approximately 0.40 (n Model1 to around 0.29 after controlling variables and confounding variables are included. The non‐overlapping confidence intervals underscore a substantial attenuation of MR1 coefficient, confirming that socioeconoimic factors interact within the MR1–mortality relationship. \
+The simplicity of Model 1 aids interpretability but contains risks of omitted variable bias, while Model 2 is more comprehensive but may sacrifice parsimony and generalisability.
+```{r fig12,fig.width=8, fig.height=4,fig.cap="Model2 vs Model2 to verify confounding factor",fig.pos="H",echo=FALSE,warning=FALSE}
+#Scatter plot comparison
+new_df <- data.frame(
+  MR1 = seq(min(us.shape.2$MR1), max(us.shape.2$MR1), length.out = 100),
+  log_Over65        = mean(us.shape.2$log_Over65,        na.rm=TRUE),
+  log_X18orless     = mean(us.shape.2$log_X18orless,     na.rm=TRUE),
+  log_NotproinEnglish = mean(us.shape.2$log_NotproinEnglish, na.rm=TRUE),
+  log_HouseholdIncome = mean(us.shape.2$log_HouseholdIncome, na.rm=TRUE)
+)
+new_df$pred_fit      <- predict(lm_fit,      newdata = new_df)
+new_df$pred_confound <- predict(lm_confound, newdata = new_df)
+
+p_con <- ggplot(us.shape.2, aes(x = MR1, y = log__AgeAdjMortality)) +
+  geom_point(color = "lightblue", alpha = 0.6, size = 1.8) +
+  
+  geom_line(
+    data = new_df,
+    aes(x = MR1, y = pred_fit, color = "lm_fit", linetype = "lm_fit"),
+    size = 1
+  ) +
+
+  geom_line(
+    data = new_df,
+    aes(x = MR1, y = pred_confound, color = "lm_confound", linetype = "lm_confound"),
+    size = 1
+  ) +
+  
+  scale_color_manual(
+    name      = "Model", 
+    values    = c("lm_fit"     = "black",
+                  "lm_confound"= "purple")
+  ) +
+  scale_linetype_manual(
+    name      = "Model",
+    values    = c("lm_fit"     = "solid",
+                  "lm_confound"= "dashed")
+  ) +
+  
+  labs(
+    title = "Model1 and model2 Comparison",
+    x     = "MR1",
+    y     = "Age-Adjusted Mortality (log)"
+  ) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title    = element_text(hjust = 0.5, face = "bold"),
+    legend.position = "right"
+  )
+
+print(p_con)
+```
+
+```{r,include=FALSE}
+#ANOVA
+anova(lm_fit, lm_confound)
+```
+
+```{=tex}
+Figure 12 presents a scatterplot, with MR1 as X-axis and age-adjusted mortality as Y-axis. The solid black line shows the Model1 fit, while the dashed purple line depicts the Model2 fit after incorporating socioeconoimic factors. With the inclusion of socioeconoimic factors, the slope decreased slightly, suggesting that the relationship between MR1 and mortality was mildly disturbed. 
+ANOVA shows that adding the controls reduces RSS by 370.49 (F(4, 3136)=267.17, p<2.2 e-16), indicating a highly significant improvement in fit.These findings validate our hypothesis that controlling for socio‐economic conditions enhances model interpretability and explanatory power.
+```
+
+# 5. Conclusion 
+\vspace{6mm}
+```{=tex}
+In this study, I explored the impact of multiple health risks and socioeconomic factors on state level premature mortality in the United States. My findings suggest that exploratory factor analysis yielded a single latent factor (MR1) associated with mental stress, diabetes, food insecurity, sleep deprivation and motor-vehicle mortality, thereby satisfying the factor‐identification hypothesis (H1). In Model 1, MR1 was robustly and positively associated with age‐adjusted premature mortality, confirming the direct‐effect hypothesis (H2). The inclusion of socioeconomic factors weakened the MR1–mortality coefficient—while preserving its statistical significance—and improved overall model fit, supporting the confounding‐effect hypothesis (H3) (Lynch \& Kaplan, 2000). Furthermore, Model 2 demonstrated stronger explanatory power than Model 1, fulfilling the model‐comparison hypothesis (H4).\\
+In conclusion, the models and analyses I developed fulfilled the objectives of my research question. Public health researchers and policy-makers could leverage overall health system, for example, to forecast population mortality risk at state level, inform targeted interventions and expand healthcare regional service coverage, and to be further included in other multi health risk research.\\
+However, this research overlooks the importance of geography and different races influence. Besides,the limitations include potential residual confounding, poor CFA fit (RMSEA>0.08), reliance on provided data, and inability to confirm causal direction.Future studies should investigate geography and race effects on premature mortality,improve factor analysis and evaluate whether they have confounding effects. By understanding these dynamics, educators and researchers can better support mortality risks prediction at state level in the United States.
+```
+
+# Bibliography
+\vspace{6mm}
+```{=tex}
+Alam, S., Ayub, M. S., Arora, S., \& Khan, M. A. (2023). An investigation of the imputation techniques for missing values in ordinal data enhancing clustering and classification analysis validity. \textit{Decision Analytics Journal}, \textit{9}, 100341. \\ \url{https://doi.org/10.1016/j.dajour.2023.100341} \\
+
+Allouch, F., Peacock, E., Mills, K. T., Bundy, J. D., Tian, L., Chen, J., \& He, J. (2023). Abstract 15052: The association between sleep duration with cardiovascular disease and all-cause mortality: Results from the National Health and Nutrition Examination Survey (NHANES). \textit{Circulation}. \\ \url{https://doi.org/10.1161/circ.148.suppl_1.15052} \\
+
+Banerjee, S., Radak, T., Khubchandani, J., \& Dunn, P. (2021). Food insecurity and mortality in American adults: Results from the NHANES-linked mortality study. \textit{Health Promotion Practice}, \textit{22}(2), 204--214. \\ \url{https://doi.org/10.1177/1524839920945927} \\
+
+Broadfoot, M. (2024). The ones who need little sleep. \textit{Knowable Magazine}. \\ \url{https://doi.org/10.1146/knowable-121124-1} \\
+
+Cheng, X., Wu, Y., Yao, J., Schwebel, D. C., \& Hu, G. (2016). Mortality from unspecified unintentional injury among individuals aged 65 years and older by U.S. state, 1999--2013. \textit{International Journal of Environmental Research and Public Health}, \textit{13}(8), 763. \\ \url{https://doi.org/10.3390/IJERPH13080763} \\
+
+Curran-Everett, D. (2018). Explorations in statistics: The log transformation. \textit{AJP Advances in Physiology Education}, \textit{42}(2), 343--347. \\ \url{https://doi.org/10.1152/advan.00018.2018} \\
+
+Dunn, J. R., Park, G., Brydon, R., Veall, M. R., Rolheiser, L., Wolfson, M., Siddiqi, A., \& Ross, N. A. (2024). State-level association between income inequality and mortality in the USA, 1989--2019: Ecological study. \textit{Journal of Epidemiology and Community Health}, jech-222262. \\ \url{https://doi.org/10.1136/jech-2024-222262} \\
+
+Fischer, A., Conigliaro, J., Allicock, S., Sharma, R., Shi, G., Calloway, K., Thomas, M., Kale, M., Nadkarni, S., \& Patel, N. S. (2021). Examination of social determinants of health among patients with limited English proficiency. \textit{BMC Research Notes}, \textit{14}, 299. \\ \url{https://doi.org/10.1186/s13104-021-05709-4} \\
+
+Frost, J. (n.d.). Factor analysis: Definition, methods \& examples. \textit{Statistics by Jim}. \\ \url{https://statisticsbyjim.com/basics/factor-analysis/} \\
+
+Huh, J., \& Reif, J. (2021). \textit{Teenage driving, mortality, and risky behaviors} (Working Paper No. 27933). National Bureau of Economic Research. \\ \url{https://www.nber.org/papers/w27933} \\
+
+Kakara, R., Lee, R., \& Eckstrom, E. (2023). Cause-specific mortality among adults aged $\geq$65 years in the United States, 1999 through 2020. \textit{Public Health Reports}. \\ \url{https://doi.org/10.1177/00333549231155869} \\
+
+Kuehn, B. M. (2019). Sleep duration linked to cardiovascular disease. \textit{Circulation}, \textit{139}(21), 2483--2484. \\ \url{https://doi.org/10.1161/CIRCULATIONAHA.119.041278} \\
+
+Lee, H., \& Singh, G. K. (2021). The association between psychological distress and cancer mortality in the United States: Results from the 1997-2014 NHIS-NDI record linkage study. \textit{Annals of Behavioral Medicine}, \textit{55}(7), 621--640. \\ \url{https://doi.org/10.1093/ABM/KAAA111} \\
+
+Liu, F., \& Chan, L.-W. (2018). Confounder detection in high-dimensional linear models using first moments of spectral measures. \textit{Neural Computation}, \textit{30}(8), 2284--2318. \\ \url{https://doi.org/10.1162/neco_a_01099} \\
+
+Lordan, G., Jimenez Soto, E., Brown, R. P. C., \& Correa-Velez, I. (2012). \textit{Socioeconomic status and health outcomes in a developing country}. Queensland University of Technology. \\ \url{https://eprints.qut.edu.au/55000/} \\
+
+Lynch, J., \& Kaplan, G. (2000). Socioeconomic position. In L. F. Berkman \& I. Kawachi (Eds.), \textit{Social epidemiology} (pp. 13--35). Oxford University Press. \\
+
+Ndawi, J. B., Florent, N., \& Majula, R. A. (2015). The influence of household income level on household mortality and life expectancy in Dodoma region in Tanzania. \textit{International Journal of Scientific and Research Publications}, \textit{5}(3), 1--10. \\
+
+Ngatuvai, M., Rosander, A. C., Maka, P., Beeton, G., Fanfan, D., Sen-Crowe, B., Newsome, K., \& Elkbuli, A. (2022). Nationwide analysis of motorcycle-associated injuries and fatalities in the United States: Insufficient prevention policies or abandoned laws? \textit{American Surgeon}, \textit{89}(5), 1950--1962. \\ \url{https://doi.org/10.1177/00031348221117033} \\
+
+Sidney, S., Go, A. S., Jaffe, M. G., Solomon, M. D., Ambrosy, A. P., \& Rana, J. S. (2019). Association between aging of the US population and heart disease mortality from 2011 to 2017. \textit{JAMA Cardiology}, \textit{4}(12), 1280--1286. \\ \url{https://doi.org/10.1001/JAMACARDIO.2019.4187} \\
+
+Singh, G. K., Lee, H., \& Lee, H. (2021). Psychological distress and Alzheimer's disease mortality in the United States: Results from the 1997--2014 National Health Interview Survey-National Death Index record linkage study. \textit{Journal of Aging and Health}, \textit{33}(3-4), 260--272. \\ \url{https://doi.org/10.1177/0898264320977309} \\
+
+Sujon, K. M., Hassan, R. B., Towshi, Z. T., Othman, M. A., Samad, M. A., \& Choi, K. (2024). When to use standardization and normalization: Empirical evidence from machine learning models and XAI. \textit{IEEE Access}, \textit{12}, 135300--135314. \\ \url{https://doi.org/10.1109/ACCESS.2024.3462434} \\
+
+Tsuji, T. (2023). Type 2 diabetes and mortality in females versus males in England: The Salford diabetes cohort. \textit{Clinical Endocrinology}, \textit{12}(1). \\ \url{https://doi.org/10.1097/xce.0000000000000276} \\
+
+Upendra, S., Abbaiah, R., \& Balasiddamuni, P. (2023). Multicollinearity in multiple linear regression: Detection, consequences, and remedies. \textit{International Journal for Research in Applied Science and Engineering Technology}, \textit{11}(8), 1089--1095. \\ \url{https://doi.org/10.22214/ijraset.2023.55786} \\
+```
+
+# Appendix
+\vspace{6mm}
+1.My Question
+What are the predictors for better health outcomes at the county level in the United States? Use a combination of the data provided and data from other sources to establish a theory of ecological health outcomes and an explanatory model. Your dependent variable will be the Premature age-adjusted mortality variable in sheet 6 of the provided dataset. You can use other variables from this dataset as predictors, as long as they make sense conceptually. You may want to (but are not required to) obtain data from other sources to help with your analysis. Data provided: Data file of different health outcomes at the level of US counties, from the Robert Wood Johnson Foundation and the University of Wisconsin Population Health Institute. Some additional detail on this can be found here. Suggested additional data: You may source additional predictors from the Centers for Disease Control and the US Census Bureau.\
+
+2.As Figure13 shows, all ten variables have mean=0 and similar median,interquartile ranges.
+```{r fig13,fig.width=12, fig.height=8,fig.cap="Variables Boxplot",fig.pos="H",echo=FALSE}
+par(mfrow = c(3, 4),
+    mar   = c(5, 4, 3, 2) + 0.1,
+    oma   = c(4, 0, 0, 0))
+
+boxplot(us.shape.2$FreqMentalDistress,
+        main = "FreqMentalDistress",
+        ylab = "Frequent Mental Distress")
+
+boxplot(us.shape.2$Diabetic,
+        main = "Diabetic",
+        ylab = "Diabetes Prevalence")
+
+boxplot(us.shape.2$InsufficientSleep,
+        main = "InsufficientSleep",
+        ylab = "Insufficient Sleep")
+
+boxplot(us.shape.2$log_HouseholdIncome,
+        main = "HouseholdIncome (log)",
+        ylab = "Median Household Income (log)")
+
+boxplot(us.shape.2$log_FoodInsecure,
+        main = "FoodInsecure (log)",
+        ylab = "Food Insecure (log)")
+
+boxplot(us.shape.2$log__AgeAdjMortality,
+        main = "AgeAdjMortality (log)",
+        ylab = "Premature Age-Adjusted Mortality (log)")
+
+boxplot(us.shape.2$log_MVMortalityRate,
+        main = "MVMortalityRate (log)",
+        ylab = "MV Mortality Rate (log)")
+
+boxplot(us.shape.2$log_Over65,
+        main = "Over65 (log)",
+        ylab = "Over65 Rate (log)")
+
+boxplot(us.shape.2$log_X18orless,
+        main = "Age <18 (log)",
+        ylab = "Younger than 18 (log)")
+
+boxplot(us.shape.2$log_NotproinEnglish,
+        main = "NotProficientInEnglish (log)",
+        ylab = "Not Proficient in English (log)")
+
+```
